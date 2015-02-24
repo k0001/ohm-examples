@@ -1,0 +1,47 @@
+name:                ohm-example-login-logout
+version:             0.0.1
+author:              Renzo Carbonara
+maintainer:          renzocarbonara%gmail,com
+copyright:           Renzo Carbonara 2015
+license:             PublicDomain
+category:            Web
+build-type:          Simple
+cabal-version:       >=1.22
+
+library
+  hs-source-dirs:      src/lib
+  ghcjs-options:       -O3 -Wall
+  cpp-options:         -DGHCJS_BROWSER -DGHCJS_BUSY_YIELD=30
+  default-language:    Haskell2010
+  default-extensions:  NoImplicitPrelude
+  js-sources:          static/deps.js
+  exposed-modules:
+      ExampleLoginLogout.Types.User
+      ExampleLoginLogout.Types.Texty
+      ExampleLoginLogout.UI.Widgets.Root
+      ExampleLoginLogout.UI.Widgets.Auth
+      ExampleLoginLogout.UI.Widgets.AuthLoginPassword
+  build-depends:
+      base >=4.7 && <4.8
+    , base-prelude >=0.1 && <0.2
+    , ghcjs-base >=0.1 && <0.2
+    , lei >=0.0 && <0.1
+    , lens >=4.6 && <4.7
+    , oHm
+    , pipes >=4.1 && <4.2
+    , text >=1.1 && <1.2
+    , transformers >=0.4 && <0.5
+
+
+executable ohm-example-login-logout
+  hs-source-dirs:      src/ohm-example-login-logout
+  main-is:             Main.hs
+  ghcjs-options:       -O3 -Wall
+  cpp-options:         -DGHCJS_BROWSER -DGHCJS_BUSY_YIELD=30
+  default-language:    Haskell2010
+  default-extensions:  NoImplicitPrelude
+  js-sources:          static/deps.js
+  build-depends:
+      base
+    , oHm
+    , ohm-example-login-logout
