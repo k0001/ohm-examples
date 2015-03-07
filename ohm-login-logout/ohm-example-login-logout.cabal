@@ -26,7 +26,7 @@ library
     , base-prelude >=0.1 && <0.2
     , ghcjs-base >=0.1 && <0.2
     , lei >=0.0 && <0.1
-    , lens >=4.6 && <4.7
+    , lens >=4.6 && <4.8
     , oHm
     , pipes >=4.1 && <4.2
     , text >=1.1 && <1.2

@@ -2,90 +2,36 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module ExampleLoginLogout.UI.Widgets.AuthLoginPassword
- ( def
+ ( -- * Model
+   modelDef
 
- , AuthLoginPassword
- , alpEmail
- , alpPassword
- , alpErrors
+ , Model
+ , mEmail
+ , mPassword
+ , mErrors
 
- , Op(..)
- , model
+ , Error(..)
 
- , Req(..)
+   -- * Controller
  , controller
 
+ , Req(..)
+ , _ReqSetEmail
+ , _ReqSetPassword
+ , _ReqLogin
+
+   -- * View
  , viewForm
  ) where
 
 import           BasePrelude
 import           Control.Lens
+import           Control.Monad.IO.Class (MonadIO)
 import qualified Data.Text as Text
 import qualified Lei
 import qualified Ohm.HTML as Ohm
 
 import           ExampleLoginLogout.Types.Texty (Texty, _Texty)
-
---------------------------------------------------------------------------------
-
-data AuthLoginPassword = AuthLoginPassword
-  { _alpEmail    :: !(Maybe Texty)
-  , _alpPassword :: !(Maybe Texty)
-  , _alpErrors   :: ![Error]
-  } deriving (Eq, Show)
-
-alpEmail :: Lens' AuthLoginPassword (Maybe Texty)
-alpEmail f s@AuthLoginPassword{_alpEmail=a} = f a <&> \b -> s{_alpEmail=b}
-
-alpPassword :: Lens' AuthLoginPassword (Maybe Texty)
-alpPassword f s@AuthLoginPassword{_alpPassword=a} = f a <&> \b -> s{_alpPassword=b}
-
-alpErrors :: Lens' AuthLoginPassword [Error]
-alpErrors f s@AuthLoginPassword{_alpErrors=a} = f a <&> \b -> s{_alpErrors=b}
-
---------------------------------------------------------------------------------
-
-def :: AuthLoginPassword
-def = AuthLoginPassword Nothing Nothing []
-
---------------------------------------------------------------------------------
-
-data Op
-  = OpSetEmail !(Maybe Texty)
-  | OpSetPassword !(Maybe Texty)
-  | OpClearErrors
-  | OpAddError !Error
-  deriving (Show)
-
-model :: Lei.Model Op AuthLoginPassword
-model = Lei.mkModel $ \case
-    OpSetEmail a -> set alpEmail a
-    OpSetPassword a -> set alpPassword a
-    OpClearErrors -> set alpErrors []
-    OpAddError a -> over alpErrors (a:)
-
---------------------------------------------------------------------------------
-
-data Req
-  = ReqSetEmail !(Maybe Texty)
-  | ReqSetPassword !(Maybe Texty)
-  | ReqLogin !Texty !Texty
-  deriving (Show)
-
-controller
-  :: Monad m
-  => (Texty -> Texty -> Lei.C r o Req Op m (Maybe user))
-  -- ^ Login by email and password
-  -> Lei.Controller r o Req Op AuthLoginPassword m
-controller login = Lei.mkController $ \_ r -> do
-    Lei.op $ OpClearErrors
-    case r of
-       ReqSetEmail a -> Lei.op $ OpSetEmail a
-       ReqSetPassword a -> Lei.op $ OpSetPassword a
-       ReqLogin uname pwd -> do
-          mu <- login uname pwd
-          when (isNothing mu) $ do
-             Lei.op $ OpAddError ErrorBadCredentials
 
 --------------------------------------------------------------------------------
 
@@ -97,25 +43,84 @@ errorDescription ErrorBadCredentials = "Bad email or password"
 
 --------------------------------------------------------------------------------
 
-viewForm :: Monad m => Lei.View () Req AuthLoginPassword m Ohm.HTML
-viewForm = Lei.mkView_ $ \_ req s ->
+data Model = Model
+  { _mEmail    :: !(Maybe Texty)
+  , _mPassword :: !(Maybe Texty)
+  , _mErrors   :: ![Error]
+  } deriving (Eq, Show)
+
+mEmail :: Lens' Model (Maybe Texty)
+mEmail f s@Model{_mEmail=a} = f a <&> \b -> s{_mEmail=b}
+
+mPassword :: Lens' Model (Maybe Texty)
+mPassword f s@Model{_mPassword=a} = f a <&> \b -> s{_mPassword=b}
+
+mErrors :: Lens' Model [Error]
+mErrors f s@Model{_mErrors=a} = f a <&> \b -> s{_mErrors=b}
+
+--------------------------------------------------------------------------------
+
+modelDef :: Model
+modelDef = Model Nothing Nothing []
+
+--------------------------------------------------------------------------------
+
+data Req
+  = ReqSetEmail !(Maybe Texty)
+  | ReqSetPassword !(Maybe Texty)
+  | ReqLogin !Texty !Texty
+  deriving (Show)
+
+_ReqSetEmail :: Prism' Req (Maybe Texty)
+_ReqSetEmail = prism' ReqSetEmail $ \case ReqSetEmail a -> Just a
+                                          _ -> Nothing
+
+_ReqSetPassword :: Prism' Req (Maybe Texty)
+_ReqSetPassword = prism' ReqSetPassword $ \case ReqSetPassword a -> Just a
+                                                _ -> Nothing
+
+_ReqLogin :: Prism' Req (Texty, Texty)
+_ReqLogin = prism' (uncurry ReqLogin) $ \case ReqLogin a b -> Just (a, b)
+                                              _ -> Nothing
+
+--------------------------------------------------------------------------------
+
+controller
+  :: Monad m
+  => (Texty -> Texty -> Lei.C s r Req Model m (Maybe user))
+  -- ^ Login by email and password
+  -> Lei.Controller s r Req Model m
+controller login = Lei.mkController $ \r -> do
+    mErrors .= []
+    case r of
+       ReqSetEmail a -> mEmail .= a
+       ReqSetPassword a -> mPassword .= a
+       ReqLogin uname pwd -> do
+          mu <- login uname pwd
+          when (isNothing mu) $ do
+             mErrors %= (ErrorBadCredentials:)
+
+--------------------------------------------------------------------------------
+
+viewForm :: MonadIO m => Lei.View () Req Model m Ohm.HTML
+viewForm = Lei.mkViewSimple $ \req s ->
     Ohm.into Ohm.form
       [ Ohm.text ("Email" :: String)
       , Ohm.with Ohm.input (do
-          Ohm.attrs . at "value" ?= (s ^. alpEmail . to Ohm.toJSString)
+          Ohm.attrs . at "value" ?= (s ^. mEmail . to Ohm.toJSString)
           Ohm.onInput $ req . ReqSetEmail . preview _Texty . Text.pack)
           []
       , Ohm.text ("Password" :: String)
       , Ohm.with Ohm.input (do
-          Ohm.attrs . at "value" ?= (s ^. alpPassword . to Ohm.toJSString)
+          Ohm.attrs . at "value" ?= (s ^. mPassword . to Ohm.toJSString)
           Ohm.onInput $ req . ReqSetPassword . preview _Texty . Text.pack)
           []
       , Ohm.with Ohm.button
-          (case (s ^. alpEmail, s ^. alpPassword) of
+          (case (s ^. mEmail, s ^. mPassword) of
              (Just e_, Just p_) -> Ohm.onClick $ req (ReqLogin e_ p_)
              _ -> Ohm.attrs . at "disabled" ?= "disabled")
           [Ohm.text ("Login" :: String)]
-      , case view alpErrors s of
+      , case view mErrors s of
           [] -> Ohm.text ("" :: String)
           xs -> Ohm.with Ohm.ul
                   (Ohm.classes .= ["errors"])
